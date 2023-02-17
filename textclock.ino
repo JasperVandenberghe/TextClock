@@ -1,18 +1,15 @@
-//#define FASTLED_ALLOW_INTERRUPTS 0
-//#define FASTLED_INTERRUPT_RETRY_COUNT 1
-
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 #include <FastLED.h>
-#include <time.h>                   // time() ctime()
+#include <time.h>
 #include <vector>
 #include <ArduinoOTA.h>
 
 // Dim lights between 22 andd 8
-#define BRIGHTNESS_DAY 170
-#define BRIGHTNESS_NIGHT 70
+#define BRIGHTNESS_DAY 90
+#define BRIGHTNESS_NIGHT 40
 #define HOUR_DAY  8
 #define HOUR_NIGHT 22
 #define BRIGHTNESS_STEPS 10
@@ -24,7 +21,7 @@
 #define LED_UPDATE_SECONDS 5
 
 /* Configuration of NTP */
-#define MY_NTP_SERVER "at.pool.ntp.org"           
+#define MY_NTP_SERVER "be.pool.ntp.org"           
 #define MY_TZ "CET-1CEST,M3.5.0/02,M10.5.0/03"   
 
 #define TEXT_HET_IS       0
@@ -52,12 +49,10 @@ CRGB leds[NUM_LEDS];              // Array containing the LEDs
 bool ledsActive[NUM_LEDS];        // Array containing active/disabled status of all LEDs
 uint16_t timerColor = 50;         // Update color every 50ms, 40 steps -> 2s to change color
 uint8_t colorInterpolateStep = 1; // Variable holding the current step for colour interpolation
-int startRed, startGreen, startBlue;
-int targetRed, targetGreen, targetBlue;
-int currentRed = 125, currentGreen = 125, currentBlue = 0;
+uint8_t startRed, startGreen, startBlue;
+uint8_t targetRed, targetGreen, targetBlue;
+uint8_t currentRed = 125, currentGreen = 125, currentBlue = 0;
 bool updateColors = false;
-
-unsigned long   lastdisplayupdate   = 0;
 
 time_t now;                         // this is the epoch
 tm tm;                              // the structure tm holds time information in a more convient way
@@ -155,7 +150,7 @@ void setup() {
 
 void loop() {
   // Power efficiency
-  delay(1); // https://hackaday.com/2022/10/28/esp8266-web-server-saves-60-power-with-a-1-ms-delay/
+  delay(2); // https://hackaday.com/2022/10/28/esp8266-web-server-saves-60-power-with-a-1-ms-delay/
   
   ArduinoOTA.handle(); 
   
@@ -261,15 +256,7 @@ void loop() {
 
   // Update brightness every minute (time is updated every 5s)
   EVERY_N_MINUTES(1) {
-    // Check if the hour is HOUR_DAY or HOUR_NIGHT to update brightness
-    if (tm.tm_hour == HOUR_DAY && tm.tm_min < BRIGHTNESS_STEPS) {
-      // Day -> increase brightness
-      // In BRIGHTNESS_STEPS minutes, go from BRIGHTNESS_NIGHT to BRIGHTNESS_DAY
-      FastLED.setBrightness(map(tm.tm_min, 0, BRIGHTNESS_STEPS - 1, BRIGHTNESS_NIGHT, BRIGHTNESS_DAY));
-    } else if (tm.tm_hour == HOUR_NIGHT && tm.tm_min < BRIGHTNESS_STEPS) {
-      // Night -> decrease brightness
-      FastLED.setBrightness(map(tm.tm_min, 0, BRIGHTNESS_STEPS - 1, BRIGHTNESS_DAY, BRIGHTNESS_NIGHT));
-    }
+    checkBrightness();
   }
 
   if(updateColors) {
@@ -280,39 +267,6 @@ void loop() {
     }
   }
   // End of everything LED related
-
-  
-  // only update clock every 50ms    
-
-    /*
-    for(int lowLed = 0; lowLed < 4; lowLed++) {
-      for(int times = 0; times < 5; times++) {
-        for(int row = 0; row < 9; row++) {
-          for(int led = 0; led < NUM_LEDS; led++) {
-            leds[led] = CRGB::Black;  
-          }
-          // Set row to color
-          for(int column = 0; column < 10; column++) {
-            //leds[row * 10 + column + 4] = CRGB(currentRed, currentGreen, currentBlue);
-            leds[row * 10 + column + 4] = CRGB::Blue;
-          }
-
-          // Set lowled to color as well
-          //leds[lowLed] = CRGB(currentRed, currentGreen, currentBlue);
-          leds[lowLed] = CRGB::Blue;
-
-          FastLED.show();
-          delay(50);
-        }
-      }
-    }
-    */
-
-  /*
-  updateActiveLeds();
-  checkBrightness();
-  showLeds();
-  */
 }
 
 void checkBrightness(){
@@ -429,33 +383,6 @@ void updateActiveLeds() {
     for (int i = 0; i < (tm.tm_min % 5); i++) {
       ledsActive[3 - i] = true;  
     }
-
-    // Print leddsActive array
-    /*
-    Serial.println();
-    for (int i = 8; i >= 0; i--) {
-      if(i % 2 == 0) {
-        // Even --> upgoing
-        for (int j = 0; j < 10; j++) {
-          Serial.print(ledsActive[i*10 + j + 4]);
-          Serial.print(" ");
-        }
-      } else {
-        // Odd --> downgoing  
-        for (int j = 9; j >= 0; j--) {
-          Serial.print(ledsActive[i*10 + j + 4]);
-          Serial.print(" ");
-        }
-      }
-      Serial.println();
-    }
-    Serial.print("      ");
-    for(int i = 0; i < 4; i++) {
-      Serial.print(ledsActive[i]);  
-      Serial.print(" ");
-    }
-    Serial.println();
-    */
 }
 
 
@@ -468,15 +395,6 @@ void showLeds() {
       leds[i] = CRGB::Black;
     }   
   }
-  
-  /*
-  for (int i = 0; i < 64; i++) {
-    leds[i] = CRGB::Black; 
-  }
-  for (int i = 64; i < NUM_LEDS; i++) {
-    leds[i] =  CRGB(currentRed, currentGreen, currentBlue);  
-  }
-  */
   
   FastLED.show();  
 }
