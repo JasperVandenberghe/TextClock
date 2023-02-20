@@ -89,23 +89,16 @@ String header;
 void setup() {
   Serial.begin(115200);
 
-  // Initialize wifi connection & web server
-  // WiFiManager
-  WiFiManager wifiManager;
-  wifiManager.autoConnect("TextClock");
-
-  // Once connected
-  Serial.println("Connected.");
-
-  server.begin();
-
-  configTime(MY_TZ, MY_NTP_SERVER); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
-
   // Initialize LEDs
   FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
   for(int i = 0; i < NUM_LEDS; i++) {
     leds[i] = CRGB::Black;
   }
+  // Set first LED in the left to red show sign of life
+  leds[3] = CRGB::Red;
+  FastLED.show();
+
+  configTime(MY_TZ, MY_NTP_SERVER); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
 
   // Determine time to set initial brightness
   time(&now);                       // read the current time
@@ -115,6 +108,26 @@ void setup() {
   } else {
     FastLED.setBrightness(BRIGHTNESS_NIGHT);
   }
+
+  // Second LED on the left to red
+  leds[2] = CRGB::Red;
+  FastLED.show();
+
+  // Initialize wifi connection & web server
+  // WiFiManager
+  WiFiManager wifiManager;
+  wifiManager.autoConnect("TextClock");
+
+  // Third LED on the left to red
+  leds[1] = CRGB::Red;
+  FastLED.show();
+
+  // Once connected
+  Serial.println("Connected.");
+  server.begin();
+
+  // All bottom LEDs to red
+  leds[0] = CRGB::Red;
   FastLED.show();
 
   // Setup for OTA
