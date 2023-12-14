@@ -6,13 +6,17 @@
 #include <time.h>
 #include <vector>
 #include <ArduinoOTA.h>
+#include <coredecls.h>  // settimeofday_cb()
 
 // Dim lights between 22 andd 8
-#define BRIGHTNESS_DAY 90
-#define BRIGHTNESS_NIGHT 40
-#define HOUR_DAY  8
-#define HOUR_NIGHT 22
-#define BRIGHTNESS_STEPS 10
+#define BRIGHTNESS_DAY 140
+#define BRIGHTNESS_NIGHT 50
+#define HOUR_DAY  5
+#define MINUTE_DAY 15
+#define HOUR_NIGHT 21
+#define MINUTE_NIGHT 0
+#define BRIGHTNESS_INTERPOLATE_STEPS 40
+#define BRIGHTNESS_INTERPOLATE_MILLIS 200
 
 #define NUM_LEDS 94
 #define LED_PIN 5
@@ -47,37 +51,40 @@
 
 CRGB leds[NUM_LEDS];              // Array containing the LEDs
 bool ledsActive[NUM_LEDS];        // Array containing active/disabled status of all LEDs
-uint16_t timerColor = 50;         // Update color every 50ms, 40 steps -> 2s to change color
+uint8_t timerColor = 50;         // Update color every 50ms, 40 steps -> 2s to change color
 uint8_t colorInterpolateStep = 1; // Variable holding the current step for colour interpolation
+uint8_t brightnessInterpolateStep = 1;
 uint8_t startRed, startGreen, startBlue;
 uint8_t targetRed, targetGreen, targetBlue;
 uint8_t currentRed = 125, currentGreen = 125, currentBlue = 0;
+uint8_t startBrightness, targetBrightness;
 bool updateColors = false;
+bool updateBrightness = false;
 
 time_t now;                         // this is the epoch
 tm tm;                              // the structure tm holds time information in a more convient way
 
 std::vector<std::vector<int>> ledsByWord = {
-  {84, 85, 86, 89, 90},     // Het is
-  {4, 5, 6},                // uur Een
-  {47, 48, 49, 50},         // uur Twee
-  {40, 41, 42, 43},         // uur Drie
-  {20, 21, 22, 23},         // uur Vier
-  {7, 8, 9, 10},            // uur Vijf
-  {51, 52, 53},             // uur Zes
-  {25, 26, 27, 28, 29},     // uur Zeven
-  {44, 45, 46, 47},         // uur Acht
-  {29, 30, 31, 32, 33},     // uur Negen
-  {34, 35, 36, 37},         // uur Tien
-  {38, 39, 40},             // uur Elf
-  {14, 15, 16, 17, 18, 19}, // uur Twaalf
-  {70, 71, 72, 73},         // over
-  {60, 61, 62, 63},         // voor
-  {79, 80, 81, 82},         // minuten Vijf
-  {75, 76, 77, 78},         // minuten Tien
-  {64, 65, 66, 67, 68},     // minuten Kwart
-  {55, 56, 57, 58},         // minuten Half
-  {11, 12, 13}              // uur
+  {9, 8, 7, 3, 4},     // Het is
+  {87, 88, 89},        // uur Een
+  {43, 44, 45, 46},    // uur Twee
+  {50, 51, 52, 53},    // uur Drie
+  {70, 71, 72, 73},    // uur Vier
+  {83, 84, 85, 86},    // uur Vijf
+  {40, 41, 42},        // uur Zes
+  {74, 75, 76, 77, 78},// uur Zeven
+  {46, 47, 48, 49},         // uur Acht
+  {60, 61, 62, 63, 64},     // uur Negen
+  {56, 57, 58, 59},         // uur Tien
+  {53, 54, 55},             // uur Elf
+  {74, 75, 76, 77, 78, 79}, // uur Twaalf
+  {20, 21, 22, 23},         // over
+  {30, 31, 32, 33},         // voor
+  {11, 12, 13, 14},         // minuten Vijf
+  {15, 16, 17, 18},         // minuten Tien
+  {25, 26, 27, 28, 29},     // minuten Kwart
+  {35, 36, 37, 38},         // minuten Half
+  {80, 81, 82}              // uur
 };
 
 // Set web server port number to 80
@@ -95,31 +102,24 @@ void setup() {
     leds[i] = CRGB::Black;
   }
   // Set first LED in the left to red show sign of life
-  leds[3] = CRGB::Red;
+  leds[90] = CRGB::Red;
   FastLED.show();
 
-  configTime(MY_TZ, MY_NTP_SERVER); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
-
-  // Determine time to set initial brightness
-  time(&now);                       // read the current time
-  localtime_r(&now, &tm);           // update the structure tm with the current time
-  if (tm.tm_hour >= HOUR_DAY && tm.tm_hour < HOUR_NIGHT) {
-    FastLED.setBrightness(BRIGHTNESS_DAY);
-  } else {
-    FastLED.setBrightness(BRIGHTNESS_NIGHT);
-  }
-
-  // Second LED on the left to red
-  leds[2] = CRGB::Red;
-  FastLED.show();
-
+  Serial.println("LED 90 red");
   // Initialize wifi connection & web server
   // WiFiManager
   WiFiManager wifiManager;
   wifiManager.autoConnect("TextClock");
+  
+  // Seconds LED on the left to red
+  leds[91] = CRGB::Red;
+  FastLED.show();
+
+  settimeofday_cb(cb_timeIsSet);
+  configTime(MY_TZ, MY_NTP_SERVER); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
 
   // Third LED on the left to red
-  leds[1] = CRGB::Red;
+  leds[92] = CRGB::Red;
   FastLED.show();
 
   // Once connected
@@ -127,7 +127,7 @@ void setup() {
   server.begin();
 
   // All bottom LEDs to red
-  leds[0] = CRGB::Red;
+  leds[93] = CRGB::Red;
   FastLED.show();
 
   // Setup for OTA
@@ -135,10 +135,10 @@ void setup() {
   ArduinoOTA.onStart([](){
     Serial.println("Arduino OTA Start");
     // Set LED 4 till 0 to colors to indicate update
-    for(int i = 4; i < NUM_LEDS; i++) {
+    for(int i = 0; i < 90; i++) {
       leds[i] = CRGB::Black;  
     }
-    for(int i = 0; i < 4; i++) {
+    for(int i = 90; i < 94; i++) {
       leds[i] = CRGB::Blue;  
     }
 
@@ -159,11 +159,32 @@ void setup() {
     else if (error == OTA_END_ERROR) Serial.println("End Failed");
   });
   ArduinoOTA.begin();
+
+  Serial.println("Set OTA");
+}
+
+// Gets called when the time is set --> determine brightness at this point
+void cb_timeIsSet() {
+  // Determine time to set initial brightness
+  time(&now);                       // read the current time
+  localtime_r(&now, &tm);           // update the structure tm with the current time
+
+  if(tm.tm_hour < HOUR_DAY || tm.tm_hour > HOUR_NIGHT) {
+    FastLED.setBrightness(BRIGHTNESS_NIGHT);
+  } else if (tm.tm_hour == HOUR_DAY && tm.tm_min < MINUTE_DAY) {
+    FastLED.setBrightness(BRIGHTNESS_NIGHT);
+  } else if (tm.tm_hour == HOUR_NIGHT && tm.tm_min > MINUTE_NIGHT) {
+    FastLED.setBrightness(BRIGHTNESS_NIGHT);
+  } else {
+    FastLED.setBrightness(BRIGHTNESS_DAY);
+  }
+
+  FastLED.show();
 }
 
 void loop() {
   // Power efficiency
-  delay(2); // https://hackaday.com/2022/10/28/esp8266-web-server-saves-60-power-with-a-1-ms-delay/
+  //delay(2); // https://hackaday.com/2022/10/28/esp8266-web-server-saves-60-power-with-a-1-ms-delay/
   
   ArduinoOTA.handle(); 
   
@@ -260,16 +281,22 @@ void loop() {
   // ********************** Start of everything LED related **********************
 
   // Update the output leds every 5 seconds 
- 
   EVERY_N_SECONDS(LED_UPDATE_SECONDS) { 
     updateActiveLeds();
     showLeds();
   }
 
 
-  // Update brightness every minute (time is updated every 5s)
-  EVERY_N_MINUTES(1) {
+  // Update brightness every 50 seconds (time is updated every 5s)
+  EVERY_N_SECONDS(50) {
     checkBrightness();
+  }
+
+  if (updateBrightness) {
+    // Interpolate from start to target brightness
+    EVERY_N_MILLISECONDS(BRIGHTNESS_INTERPOLATE_MILLIS) {
+      interpolateBrightness();
+    }
   }
 
   if(updateColors) {
@@ -283,14 +310,41 @@ void loop() {
 }
 
 void checkBrightness(){
-  if (tm.tm_hour == HOUR_DAY && tm.tm_min < BRIGHTNESS_STEPS) {
-      // Day -> increase brightness
-      // In BRIGHTNESS_STEPS minutes, go from BRIGHTNESS_NIGHT to BRIGHTNESS_DAY
-      FastLED.setBrightness(map(tm.tm_min, 0, BRIGHTNESS_STEPS - 1, BRIGHTNESS_NIGHT, BRIGHTNESS_DAY));
-    } else if (tm.tm_hour == HOUR_NIGHT && tm.tm_min < BRIGHTNESS_STEPS) {
-      // Night -> decrease brightness
-      FastLED.setBrightness(map(tm.tm_min, 0, BRIGHTNESS_STEPS - 1, BRIGHTNESS_DAY, BRIGHTNESS_NIGHT));
-    }
+  // If already updating the brightness, disregard
+  if (updateBrightness)
+    return;
+  
+  // Is it currently the time to switch from DAY -> NIGHT ?
+  if (tm.tm_hour == HOUR_NIGHT && tm.tm_min == MINUTE_NIGHT) {
+    // Yes. Coming from BRIGHTNESS_DAY, go to BRIGHTNESS_NIGHT
+    startBrightness = BRIGHTNESS_DAY;
+    targetBrightness = BRIGHTNESS_NIGHT;
+    updateBrightness = true;
+    return;
+  }
+
+  // Is it currently the time to switch from NIGHT -> DAY ?
+  if (tm.tm_hour == HOUR_DAY && tm.tm_min == MINUTE_DAY) {
+    // Yes. Coming from BRIGHTNESS_NIGHT, go to BRIGHTNESS_DAY
+    startBrightness = BRIGHTNESS_NIGHT;
+    targetBrightness = BRIGHTNESS_DAY;
+    updateBrightness = true;
+    return;
+  }
+}
+
+void interpolateBrightness() {
+  int newBrightness = map(brightnessInterpolateStep, 1, BRIGHTNESS_INTERPOLATE_STEPS, startBrightness, targetBrightness);
+  FastLED.setBrightness(newBrightness);
+
+  if (brightnessInterpolateStep == BRIGHTNESS_INTERPOLATE_STEPS) {
+    updateBrightness = false;
+    brightnessInterpolateStep = 1;
+  } else {
+    brightnessInterpolateStep++;
+  }
+
+  FastLED.show();
 }
 
 void interpolateColors() {
@@ -298,10 +352,6 @@ void interpolateColors() {
   currentRed = map(colorInterpolateStep, 1, COLOR_INTERPOLATE_STEPS, startRed, targetRed);
   currentGreen = map(colorInterpolateStep, 1, COLOR_INTERPOLATE_STEPS, startGreen, targetGreen);
   currentBlue = map(colorInterpolateStep, 1, COLOR_INTERPOLATE_STEPS, startBlue, targetBlue);
-
-  Serial.println(currentRed);
-  Serial.println(currentGreen);
-  Serial.println(currentBlue);
 
   // If we are at step 40, interpolation has been completed
   if(colorInterpolateStep == COLOR_INTERPOLATE_STEPS) {
@@ -394,7 +444,7 @@ void updateActiveLeds() {
 
     // Update the 4 minute counters
     for (int i = 0; i < (tm.tm_min % 5); i++) {
-      ledsActive[3 - i] = true;  
+      ledsActive[90 + i] = true;  
     }
 }
 
@@ -408,6 +458,5 @@ void showLeds() {
       leds[i] = CRGB::Black;
     }   
   }
-  
   FastLED.show();  
 }
