@@ -6,10 +6,14 @@
 #include <time.h>
 #include <vector>
 #include <ArduinoOTA.h>
+#include <ESP8266mDNS.h>
 #include <coredecls.h>  // settimeofday_cb()
 
+// How are the LEDs connected? (by defining 'old' or not)
+#define old
+
 // Dim lights between 22 andd 8
-#define BRIGHTNESS_DAY 140
+#define BRIGHTNESS_DAY 120
 #define BRIGHTNESS_NIGHT 50
 #define HOUR_DAY  5
 #define MINUTE_DAY 15
@@ -64,6 +68,31 @@ bool updateBrightness = false;
 time_t now;                         // this is the epoch
 tm tm;                              // the structure tm holds time information in a more convient way
 
+#if defined(old)
+std::vector<std::vector<int>> ledsByWord = {
+  {84, 85, 86, 89, 90},     // Het is
+  {4, 5, 6},                // uur Een
+  {47, 48, 49, 50},         // uur Twee
+  {40, 41, 42, 43},         // uur Drie
+  {20, 21, 22, 23},         // uur Vier
+  {7, 8, 9, 10},            // uur Vijf
+  {51, 52, 53},             // uur Zes
+  {25, 26, 27, 28, 29},     // uur Zeven
+  {44, 45, 46, 47},         // uur Acht
+  {29, 30, 31, 32, 33},     // uur Negen
+  {34, 35, 36, 37},         // uur Tien
+  {38, 39, 40},             // uur Elf
+  {14, 15, 16, 17, 18, 19}, // uur Twaalf
+  {70, 71, 72, 73},         // over
+  {60, 61, 62, 63},         // voor
+  {79, 80, 81, 82},         // minuten Vijf
+  {75, 76, 77, 78},         // minuten Tien
+  {64, 65, 66, 67, 68},     // minuten Kwart
+  {55, 56, 57, 58},         // minuten Half
+  {11, 12, 13}              // uur
+};
+uint8_t minuteLeds[4] = {3, 2, 1, 0};
+#else
 std::vector<std::vector<int>> ledsByWord = {
   {9, 8, 7, 3, 4},     // Het is
   {87, 88, 89},        // uur Een
@@ -86,6 +115,8 @@ std::vector<std::vector<int>> ledsByWord = {
   {35, 36, 37, 38},         // minuten Half
   {80, 81, 82}              // uur
 };
+uint8_t minuteLeds[4] = {90, 91, 92, 93};
+#endif
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -102,32 +133,37 @@ void setup() {
     leds[i] = CRGB::Black;
   }
   // Set first LED in the left to red show sign of life
-  leds[90] = CRGB::Red;
+  leds[minuteLeds[0]] = CRGB::Red;
   FastLED.show();
 
-  Serial.println("LED 90 red");
+  Serial.println("Minute 1 red");
   // Initialize wifi connection & web server
   // WiFiManager
   WiFiManager wifiManager;
   wifiManager.autoConnect("TextClock");
   
   // Seconds LED on the left to red
-  leds[91] = CRGB::Red;
+  leds[minuteLeds[1]] = CRGB::Red;
   FastLED.show();
 
   settimeofday_cb(cb_timeIsSet);
   configTime(MY_TZ, MY_NTP_SERVER); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
 
   // Third LED on the left to red
-  leds[92] = CRGB::Red;
+  leds[minuteLeds[2]] = CRGB::Red;
   FastLED.show();
 
   // Once connected
   Serial.println("Connected.");
   server.begin();
 
+  // Initialize mDNS
+  if (!MDNS.begin("textclock")) {
+    Serial.println("Error setting up MDNS responder!");
+  }
+
   // All bottom LEDs to red
-  leds[93] = CRGB::Red;
+  leds[minuteLeds[3]] = CRGB::Red;
   FastLED.show();
 
   // Setup for OTA
@@ -135,11 +171,11 @@ void setup() {
   ArduinoOTA.onStart([](){
     Serial.println("Arduino OTA Start");
     // Set LED 4 till 0 to colors to indicate update
-    for(int i = 0; i < 90; i++) {
+    for(int i = 0; i < NUM_LEDS; i++) {
       leds[i] = CRGB::Black;  
     }
-    for(int i = 90; i < 94; i++) {
-      leds[i] = CRGB::Blue;  
+    for(int i = 0; i < 4; i++) {
+      leds[minuteLeds[i]] = CRGB::Blue;
     }
 
     FastLED.show();
@@ -444,7 +480,7 @@ void updateActiveLeds() {
 
     // Update the 4 minute counters
     for (int i = 0; i < (tm.tm_min % 5); i++) {
-      ledsActive[90 + i] = true;  
+      ledsActive[minuteLeds[i]] = true;  
     }
 }
 
