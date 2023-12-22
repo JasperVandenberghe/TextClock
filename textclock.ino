@@ -10,7 +10,7 @@
 #include <coredecls.h>  // settimeofday_cb()
 
 // How are the LEDs connected? (by defining 'old' or not)
-#define old
+//#define old
 
 // Dim lights between 22 andd 8
 #define BRIGHTNESS_DAY 120
@@ -101,7 +101,7 @@ std::vector<std::vector<int>> ledsByWord = {
   {70, 71, 72, 73},    // uur Vier
   {83, 84, 85, 86},    // uur Vijf
   {40, 41, 42},        // uur Zes
-  {74, 75, 76, 77, 78},// uur Zeven
+  {64, 65, 66, 67, 68},// uur Zeven
   {46, 47, 48, 49},         // uur Acht
   {60, 61, 62, 63, 64},     // uur Negen
   {56, 57, 58, 59},         // uur Tien
